@@ -91,21 +91,39 @@ class VDSRModel(BaseModel):
 
         state = torch.load(path, map_location=self.device, weights_only=False)
 
-        
-        # Determine if it's a full model object or a nested state dict
+        # PyTorch 2.6 unpickler on legacy objects sometimes causes __dict__ or state_dict
+        # to be entirely shielded, resulting in the raw object falling through.
+        # We enforce strict extraction using PyTorch's native C++ methods or fallback logic.
+        extracted_state = {}
         if hasattr(state, 'state_dict') and callable(getattr(state, 'state_dict')):
-            state = state.state_dict()
-        elif isinstance(state, dict):
-            if 'state_dict' in state:
-                state = state['state_dict']
-            elif 'model' in state:
-                state = state['model']
-        elif hasattr(state, '__dict__'):
-            state = state.__dict__
-        
+            try:
+                extracted_state = state.state_dict()
+            except Exception:
+                pass
+                
+        if not extracted_state:
+            if isinstance(state, dict):
+                extracted_state = state
+            elif hasattr(state, '__dict__'):
+                extracted_state = state.__dict__
+                
+        if not extracted_state:
+            # Fallback: Rip parameters directly from the C++ bindings!
+            if hasattr(state, 'named_parameters'):
+                for name, param in state.named_parameters():
+                    extracted_state[name] = param
+
+        if not extracted_state:
+            raise RuntimeError(f"Could not extract parameters natively from parsed {type(state)} object.")
+            
+        if 'state_dict' in extracted_state:
+            extracted_state = extracted_state['state_dict']
+        elif 'model' in extracted_state:
+            extracted_state = extracted_state['model']
+
         # Map keys if necessary (e.g., if the checkpoint was trained with DataParallel)
         new_state = {}
-        for k, v in state.items():
+        for k, v in extracted_state.items():
             name = k.replace('module.', '') # remove `module.` prefix
             
             # Map twtygqyy's implementation keys to our Sequential layers
