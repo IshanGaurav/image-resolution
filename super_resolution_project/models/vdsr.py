@@ -87,7 +87,7 @@ class VDSRModel(BaseModel):
         if not os.path.exists(path):
             raise FileNotFoundError(f"No weights file found at {path}")
 
-        state = torch.load(path, map_location=self.device)
+        state = torch.load(path, map_location=self.device, weights_only=False)
         
         # Handle cases where the state dict is nested (common in PyTorch Hub/checkpoints)
         if 'state_dict' in state:

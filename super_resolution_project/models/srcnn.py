@@ -79,7 +79,7 @@ class SRCNNModel(BaseModel):
         if not os.path.exists(path):
             raise FileNotFoundError(f"No weights file found at {path}")
 
-        state = torch.load(path, map_location=self.device)
+        state = torch.load(path, map_location=self.device, weights_only=False)
         
         # Handle Lornatang or other implementations that wrap state_dict
         if 'state_dict' in state:
