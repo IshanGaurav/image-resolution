@@ -79,6 +79,8 @@ class VDSRModel(BaseModel):
     def load_weights(self, path: str) -> None:
         """Load a ``.pth`` or ``.pt`` state dict into the network."""
         import os
+        import sys
+
         if not os.path.isabs(path):
             # If relative, look relative to the script's directory
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -87,13 +89,33 @@ class VDSRModel(BaseModel):
         if not os.path.exists(path):
             raise FileNotFoundError(f"No weights file found at {path}")
 
+        # PyTorch 2.6 blocks globals dynamically and this older checkpoint requires 'vdsr.Net'
+        class DummyNet(torch.nn.Module): pass
+        class DummyModule: pass
+        if 'vdsr' not in sys.modules:
+            dummy_mod = DummyModule()
+            dummy_mod.Net = DummyNet
+            sys.modules['vdsr'] = dummy_mod
+            
+        # Register safe global for PyTorch 2.6+ pickler
+        if hasattr(torch.serialization, 'add_safe_globals'):
+            try:
+                torch.serialization.add_safe_globals([DummyNet])
+            except Exception:
+                pass
+
         state = torch.load(path, map_location=self.device, weights_only=False)
         
-        # Handle cases where the state dict is nested (common in PyTorch Hub/checkpoints)
-        if 'state_dict' in state:
-            state = state['state_dict']
-        elif 'model' in state:
-            state = state['model']
+        # Determine if it's a full model object or a nested state dict
+        if hasattr(state, 'state_dict') and callable(getattr(state, 'state_dict')):
+            state = state.state_dict()
+        elif isinstance(state, dict):
+            if 'state_dict' in state:
+                state = state['state_dict']
+            elif 'model' in state:
+                state = state['model']
+        elif hasattr(state, '__dict__'):
+            state = state.__dict__
         
         # Map keys if necessary (e.g., if the checkpoint was trained with DataParallel)
         new_state = {}
