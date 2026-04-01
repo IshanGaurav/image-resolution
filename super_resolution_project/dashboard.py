@@ -310,3 +310,4 @@ if uploaded_file is not None:
 
 else:
     st.info("👈 Upload a high-resolution image from the sidebar to begin.")
+# Force Streamlit to hot-reload models

@@ -91,20 +91,27 @@ class VDSRModel(BaseModel):
 
         state = torch.load(path, map_location=self.device, weights_only=False)
 
-        # PyTorch 2.6 unpickler on legacy objects sometimes causes __dict__ or state_dict
+        # 1. Unwrap the outer dictionary if the checkpoint was saved as {'model': ...}
+        if isinstance(state, dict):
+            if 'state_dict' in state:
+                state = state['state_dict']
+            elif 'model' in state:
+                state = state['model']
+
+        # 2. PyTorch 2.6 unpickler on legacy objects sometimes causes __dict__ or state_dict
         # to be entirely shielded, resulting in the raw object falling through.
         # We enforce strict extraction using PyTorch's native C++ methods or fallback logic.
         extracted_state = {}
-        if hasattr(state, 'state_dict') and callable(getattr(state, 'state_dict')):
+        if isinstance(state, dict):
+            extracted_state = state
+        elif hasattr(state, 'state_dict') and callable(getattr(state, 'state_dict')):
             try:
                 extracted_state = state.state_dict()
             except Exception:
                 pass
                 
         if not extracted_state:
-            if isinstance(state, dict):
-                extracted_state = state
-            elif hasattr(state, '__dict__'):
+            if hasattr(state, '__dict__'):
                 extracted_state = state.__dict__
                 
         if not extracted_state:
@@ -116,11 +123,6 @@ class VDSRModel(BaseModel):
         if not extracted_state:
             raise RuntimeError(f"Could not extract parameters natively from parsed {type(state)} object.")
             
-        if 'state_dict' in extracted_state:
-            extracted_state = extracted_state['state_dict']
-        elif 'model' in extracted_state:
-            extracted_state = extracted_state['model']
-
         # Map keys if necessary (e.g., if the checkpoint was trained with DataParallel)
         new_state = {}
         for k, v in extracted_state.items():
