@@ -225,22 +225,26 @@ if uploaded_file is not None:
             models_to_run.append(("Bicubic", BicubicModel(scale_factor)))
         if use_srcnn:
             srcnn = SRCNNModel(scale_factor)
-            weights_path = "weights/srcnn_x3-T91-919a959c.pth.tar"
+            import os
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            weights_path = os.path.join(base_dir, "weights", "srcnn_x3-T91-919a959c.pth.tar")
             try:
                 srcnn.load_weights(weights_path)
                 models_to_run.append(("SRCNN", srcnn))
-            except FileNotFoundError:
-                st.error(f"⚠️ Error: Pretrained weights not found at {weights_path}")
+            except Exception as e:
+                st.error(f"⚠️ Error: SRCNN weights error: {e}")
                 has_error = True
 
         if use_vdsr:
             vdsr = VDSRModel(scale_factor)
-            vdsr_weights = "weights/model_epoch_50.pth"
+            import os
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            vdsr_weights = os.path.join(base_dir, "weights", "model_epoch_50.pth")
             try:
                 vdsr.load_weights(vdsr_weights)
                 models_to_run.append(("VDSR", vdsr))
-            except FileNotFoundError:
-                st.error(f"⚠️ Error: Pretrained weights not found at {vdsr_weights}")
+            except Exception as e:
+                st.error(f"⚠️ Error: VDSR weights error: {e}")
                 has_error = True
 
         if use_stack:

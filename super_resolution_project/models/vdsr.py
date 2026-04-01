@@ -78,6 +78,15 @@ class VDSRModel(BaseModel):
 
     def load_weights(self, path: str) -> None:
         """Load a ``.pth`` or ``.pt`` state dict into the network."""
+        import os
+        if not os.path.isabs(path):
+            # If relative, look relative to the script's directory
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            path = os.path.join(base_dir, path)
+            
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"No weights file found at {path}")
+
         state = torch.load(path, map_location=self.device)
         
         # Handle cases where the state dict is nested (common in PyTorch Hub/checkpoints)

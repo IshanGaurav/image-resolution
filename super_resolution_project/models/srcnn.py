@@ -71,6 +71,14 @@ class SRCNNModel(BaseModel):
     # ---- optional: load a trained checkpoint -------------------------
     def load_weights(self, path: str) -> None:
         """Load a ``.pth`` or ``.pth.tar`` state dict into the network."""
+        import os
+        if not os.path.isabs(path):
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            path = os.path.join(base_dir, path)
+
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"No weights file found at {path}")
+
         state = torch.load(path, map_location=self.device)
         
         # Handle Lornatang or other implementations that wrap state_dict
