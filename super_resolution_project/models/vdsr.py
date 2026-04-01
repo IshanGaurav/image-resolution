@@ -90,21 +90,21 @@ class VDSRModel(BaseModel):
             raise FileNotFoundError(f"No weights file found at {path}")
 
         # PyTorch 2.6 blocks globals dynamically and this older checkpoint requires 'vdsr.Net'
-        class DummyNet(torch.nn.Module): pass
-        class DummyModule: pass
+        # We must explicitly alias the current module (models.vdsr) to 'vdsr' in sys.modules
         if 'vdsr' not in sys.modules:
-            dummy_mod = DummyModule()
-            dummy_mod.Net = DummyNet
-            sys.modules['vdsr'] = dummy_mod
+            sys.modules['vdsr'] = sys.modules[__name__]
+        if not hasattr(sys.modules['vdsr'], 'Net'):
+            setattr(sys.modules['vdsr'], 'Net', VDSRNet)
             
         # Register safe global for PyTorch 2.6+ pickler
         if hasattr(torch.serialization, 'add_safe_globals'):
             try:
-                torch.serialization.add_safe_globals([DummyNet])
+                torch.serialization.add_safe_globals([sys.modules['vdsr'].Net])
             except Exception:
                 pass
 
         state = torch.load(path, map_location=self.device, weights_only=False)
+
         
         # Determine if it's a full model object or a nested state dict
         if hasattr(state, 'state_dict') and callable(getattr(state, 'state_dict')):
